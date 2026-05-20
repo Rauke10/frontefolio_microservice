@@ -40,10 +40,25 @@ jobs:
       # ──────────────────────────────────────────────────────
       - name: Set up SSH
         run: |
+          set -e
           mkdir -p ~/.ssh
-          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 700 ~/.ssh
+          printf '%s\n' "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts
+          # Probar que la clave es parseable
+          ssh-keygen -y -f ~/.ssh/id_rsa > ~/.ssh/id_rsa.pub
+          echo "✓ Clave SSH OK"
+          # ssh-keyscan con timeout y reintentos
+          for i in 1 2 3; do
+            if ssh-keyscan -T 10 -H "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null; then
+              echo "✓ Host añadido a known_hosts (intento $i)"
+              break
+            fi
+            echo "ssh-keyscan intento $i falló, reintentando..."
+            sleep 5
+          done
+          # Verificar conectividad SSH
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} 'echo OK desde $(hostname)'
 
       # ──────────────────────────────────────────────────────
       # 5. Sincronizar AMBOS repos a la EC2
