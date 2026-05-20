@@ -1,16 +1,13 @@
 version: '3.8'
 
 services:
-  # Solo se levanta en desarrollo local: docker compose --profile local up
+  # MySQL del proyecto (compartido por todos los servicios)
   mysql:
-    profiles: [local]
     image: mysql:8
     container_name: frontefolio_mysql
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
       MYSQL_DATABASE: ${DB_NAME}
-    ports:
-      - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
       - ./db/schema.sql:/docker-entrypoint-initdb.d/schema.sql
@@ -24,7 +21,7 @@ services:
     build: ./services/api-gateway
     container_name: frontefolio_gateway
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     env_file: .env
     environment:
       PORT: 3000
@@ -36,13 +33,22 @@ services:
       LOGISTICS_SERVICE_URL: http://logistics-service:3006
       CHAT_SERVICE_URL:      http://chat-service:3007
     depends_on:
-      - auth-service
-      - user-service
-      - catalog-service
-      - order-service
-      - payment-service
-      - logistics-service
-      - chat-service
+      mysql:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+      user-service:
+        condition: service_started
+      catalog-service:
+        condition: service_started
+      order-service:
+        condition: service_started
+      payment-service:
+        condition: service_started
+      logistics-service:
+        condition: service_started
+      chat-service:
+        condition: service_started
     restart: unless-stopped
 
   auth-service:
@@ -51,6 +57,9 @@ services:
     env_file: .env
     environment:
       PORT: 3001
+    depends_on:
+      mysql:
+        condition: service_healthy
     restart: unless-stopped
 
   user-service:
@@ -59,6 +68,9 @@ services:
     env_file: .env
     environment:
       PORT: 3002
+    depends_on:
+      mysql:
+        condition: service_healthy
     restart: unless-stopped
 
   catalog-service:
@@ -67,6 +79,9 @@ services:
     env_file: .env
     environment:
       PORT: 3003
+    depends_on:
+      mysql:
+        condition: service_healthy
     restart: unless-stopped
 
   order-service:
@@ -75,6 +90,9 @@ services:
     env_file: .env
     environment:
       PORT: 3004
+    depends_on:
+      mysql:
+        condition: service_healthy
     restart: unless-stopped
 
   payment-service:
@@ -83,6 +101,9 @@ services:
     env_file: .env
     environment:
       PORT: 3005
+    depends_on:
+      mysql:
+        condition: service_healthy
     restart: unless-stopped
 
   logistics-service:
@@ -91,6 +112,9 @@ services:
     env_file: .env
     environment:
       PORT: 3006
+    depends_on:
+      mysql:
+        condition: service_healthy
     restart: unless-stopped
 
   chat-service:
@@ -99,7 +123,24 @@ services:
     env_file: .env
     environment:
       PORT: 3007
+    depends_on:
+      mysql:
+        condition: service_healthy
     restart: unless-stopped
+
+  frontend:
+    build:
+      context: ../frontefolio_microservice_front
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: /api
+    container_name: frontefolio_frontend
+    ports:
+      - "127.0.0.1:8080:80"
+    depends_on:
+      - api-gateway
+    restart: unless-stopped
+
 
 volumes:
   mysql_data:
